@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  corebank-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: corebank-api
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=corebank;Username=corebank;Password=corebank_password
+      - JwtSettings__SecretKey=YourSuperSecretKeyThatIsAtLeast32CharactersLongForProduction!
+      - JwtSettings__Issuer=CoreBank
+      - JwtSettings__Audience=CoreBankUsers
+      - JwtSettings__ExpirationMinutes=60
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - corebank-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: corebank-postgres
+    environment:
+      - POSTGRES_USER=corebank
+      - POSTGRES_PASSWORD=corebank_password
+      - POSTGRES_DB=corebank
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - corebank-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corebank -d corebank"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: corebank-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@corebank.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - corebank-network
+    restart: unless-stopped
+
+networks:
+  corebank-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
